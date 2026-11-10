@@ -1,10 +1,26 @@
 import { combineRgb, type CompanionFeedbackDefinitions } from '@companion-module/base'
 import type ModuleInstance from './main.js'
+import { str } from './util.js'
 
 const truthy = (v: unknown): boolean => v === true || v === 'true' || v === '1' || v === 1
 
-export const FEEDBACK_IDS = ['connected', 'paused', 'impending', 'expired', 'adjusting', 'message_showing', 'runsheet_active', 'runsheet_behind',
-	'runsheet_ahead', 'video_cued', 'video_playing', 'message_is', 'switch_on', 'remain_under'] as const
+export const FEEDBACK_IDS = [
+	'connected',
+	'paused',
+	'impending',
+	'expired',
+	'adjusting',
+	'message_showing',
+	'runsheet_active',
+	'runsheet_behind',
+	'runsheet_ahead',
+	'video_cued',
+	'video_playing',
+	'message_is',
+	'switch_on',
+	'remain_under',
+	'update_available',
+] as const
 
 const W = combineRgb(255, 255, 255)
 const K = combineRgb(0, 0, 0)
@@ -28,6 +44,7 @@ export const DEFAULT_STYLES: Record<(typeof FEEDBACK_IDS)[number], { bgcolor: nu
 	message_is: { bgcolor: combineRgb(90, 0, 140), color: W },
 	switch_on: { bgcolor: combineRgb(0, 80, 0), color: W },
 	remain_under: { bgcolor: combineRgb(220, 120, 0), color: K },
+	update_available: { bgcolor: combineRgb(0, 90, 140), color: W },
 }
 
 export function UpdateFeedbacks(self: ModuleInstance): void {
@@ -48,19 +65,33 @@ export function UpdateFeedbacks(self: ModuleInstance): void {
 		...stateIs('paused', () => truthy(vars().pausing), 'Timer is paused'),
 		...stateIs('impending', () => truthy(vars().impending) && !truthy(vars().expired), 'Under a minute left'),
 		...stateIs('expired', () => truthy(vars().expired), 'Time is up (overtime)'),
-		...stateIs('adjusting', () => truthy(vars().adjusting_up) || truthy(vars().adjusting_down), 'Catch up possible (a nudge is in progress)'),
+		...stateIs(
+			'adjusting',
+			() => truthy(vars().adjusting_up) || truthy(vars().adjusting_down),
+			'Catch up possible (a nudge is in progress)',
+		),
 		...stateIs('message_showing', () => String(vars().custommsg ?? '') !== '', 'A message is showing'),
 		...stateIs('runsheet_active', () => truthy(vars().rs_active), 'Run sheet mode is on'),
 		...stateIs('runsheet_behind', () => Number(vars().rs_late) >= 30, 'Run sheet: behind schedule (30 s or more)'),
-		...stateIs('runsheet_ahead', () => Number(vars().rs_late) <= -30 && vars().rs_late !== '' && vars().rs_late != null, 'Run sheet: ahead of schedule (30 s or more)'),
+		...stateIs(
+			'runsheet_ahead',
+			() => Number(vars().rs_late) <= -30 && vars().rs_late !== '' && vars().rs_late != null,
+			'Run sheet: ahead of schedule (30 s or more)',
+		),
 		...stateIs('video_cued', () => vars().video_status === 'cued', 'A video is cued (ready to play)'),
 		...stateIs('video_playing', () => vars().video_status === 'playing', 'A video is playing'),
+		...stateIs(
+			'update_available',
+			() => !!self.update,
+			'A newer version of this module is available',
+			'From GitHub, checked daily (the connection’s settings can turn it off)',
+		),
 		message_is: {
 			type: 'boolean',
 			name: 'The message showing is…',
 			defaultStyle: { ...DEFAULT_STYLES.message_is },
 			options: [{ id: 'text', type: 'textinput', label: 'Message', default: 'Please wrap up', useVariables: true }],
-			callback: (fb) => String(vars().custommsg ?? '') === String(fb.options.text ?? '').trim(),
+			callback: (fb) => String(vars().custommsg ?? '') === str(fb.options.text).trim(),
 		},
 		switch_on: {
 			type: 'boolean',
@@ -80,7 +111,7 @@ export function UpdateFeedbacks(self: ModuleInstance): void {
 					],
 				},
 			],
-			callback: (fb) => truthy(vars()[String(fb.options.what)]),
+			callback: (fb) => truthy(vars()[str(fb.options.what)]),
 		},
 		remain_under: {
 			type: 'boolean',
@@ -98,7 +129,10 @@ export function UpdateFeedbacks(self: ModuleInstance): void {
 
 /** "9:58" → 598, "1:02:03" → 3723; null if unreadable. */
 export function remainSeconds(text: string): number | null {
-	const m = text.trim().replace(/^\+/, '').match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/)
+	const m = text
+		.trim()
+		.replace(/^\+/, '')
+		.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/)
 	if (!m) return null
 	return Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3])
 }

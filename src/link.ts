@@ -18,6 +18,7 @@
 import WebSocket from 'ws'
 import { EventEmitter } from 'node:events'
 import { randomBytes } from 'node:crypto'
+import { str } from './util.js'
 
 export interface LinkConfig {
 	server: string
@@ -44,7 +45,7 @@ export interface ParsedLink {
  * defaultServer): the VPS (sophtwhere.com) runs it on port 8443, a Cloudflare site at /ws. */
 export function serverFor(host: string): string {
 	const name = host.replace(/:\d+$/, '')
-	if (name === 'timer.sophtwhere.com' || host === 'localhost:8444') return `wss://${name}:8443/`   // only the VPS copy; timer-beta.sophtwhere.com is the Worker
+	if (name === 'timer.sophtwhere.com' || host === 'localhost:8444') return `wss://${name}:8443/` // only the VPS copy; timer-beta.sophtwhere.com is the Worker
 	return `wss://${host}/ws`
 }
 
@@ -66,7 +67,10 @@ export function parseLink(text: string, defaultServer?: string): ParsedLink | nu
 	if (hash >= 0) frag = frag.slice(hash + 1)
 	const p = new URLSearchParams(frag)
 	const room = p.get('r') ?? p.get('room')
-	const c = p.get('c'), a = p.get('a'), k = p.get('k') ?? p.get('key'), v = p.get('v')
+	const c = p.get('c'),
+		a = p.get('a'),
+		k = p.get('k') ?? p.get('key'),
+		v = p.get('v')
 	const key = c ?? a ?? k ?? v
 	if (!room || !key) return null
 	let server = p.get('s') ?? p.get('server') ?? ''
@@ -99,7 +103,10 @@ export class TimerLink extends EventEmitter<TimerLinkEvents> {
 	private closed = false
 	private hostOnline = false
 	private pinCode: string | null = null
-	private pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>()
+	private pending = new Map<
+		string,
+		{ resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }
+	>()
 	private seq = 0
 	public status: LinkStatus = 'connecting'
 	public role = ''
@@ -140,8 +147,8 @@ export class TimerLink extends EventEmitter<TimerLinkEvents> {
 	}
 
 	/** Runs a timer API command: processTimerApiMessage(msg) on the timer. Resolves with its result. */
-	api(msg: Record<string, unknown>, timeoutMs = 5000): Promise<unknown> {
-		if (!this.online) return Promise.reject(new Error('not connected to the timer'))
+	async api(msg: Record<string, unknown>, timeoutMs = 5000): Promise<unknown> {
+		if (!this.online) throw new Error('not connected to the timer')
 		const req = (++this.seq).toString(36)
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
@@ -195,7 +202,7 @@ export class TimerLink extends EventEmitter<TimerLinkEvents> {
 		ws.on('message', (data) => {
 			let m: Record<string, unknown>
 			try {
-				m = JSON.parse(data.toString())
+				m = JSON.parse((Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data)).toString('utf8'))
 			} catch {
 				return
 			}
@@ -250,17 +257,23 @@ export class TimerLink extends EventEmitter<TimerLinkEvents> {
 				break
 			case 'down': {
 				const msg = m.msg as { k?: string; d?: unknown } | undefined
-				if (msg && msg.k === 'data' && msg.d && typeof msg.d === 'object') this.onTimer(msg.d as Record<string, unknown>)
+				if (msg && msg.k === 'data' && msg.d && typeof msg.d === 'object')
+					this.onTimer(msg.d as Record<string, unknown>)
 				// {k:'sig'}: the timer offering a WebRTC link; we don't answer, it falls back to the server
 				break
 			}
 			case 'error': {
-				const reason = String(m.reason ?? '')
+				const reason = str(m.reason)
 				if (reason === 'not-found' || reason === 'room-closed') {
 					// The room comes back when the timer reopens (or the link is wrong). Keep trying, slowly.
 					this.waiting = true
 					this.retry = 15000
-					this.setStatus('waiting', reason === 'not-found' ? 'no timer with this code (is the link right? is the timer open with phone control on?)' : 'the timer closed')
+					this.setStatus(
+						'waiting',
+						reason === 'not-found'
+							? 'no timer with this code (is the link right? is the timer open with phone control on?)'
+							: 'the timer closed',
+					)
 				} else if (reason === 'rejected') {
 					this.setStatus('rejected', 'the timer refused this connection (wrong number)')
 				} else if (reason === 'room-full') {
@@ -292,7 +305,7 @@ export class TimerLink extends EventEmitter<TimerLinkEvents> {
 				if (!p) return
 				this.pending.delete(d.req as string)
 				clearTimeout(p.timer)
-				if (d.error) p.reject(new Error(String(d.error) + (d.detail ? `: ${String(d.detail)}` : '')))
+				if (d.error) p.reject(new Error(str(d.error) + (d.detail ? `: ${str(d.detail)}` : '')))
 				else p.resolve(d.result)
 				break
 			}

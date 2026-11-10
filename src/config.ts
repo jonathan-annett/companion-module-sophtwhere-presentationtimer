@@ -9,6 +9,8 @@ export interface ModuleConfig {
 	insecure: boolean
 	/** Token from a PIN approval, kept here so a restart needs no new PIN (written by the module) */
 	token: string
+	/** Ask GitHub daily whether a newer version of this module is out (update.ts); missing = on */
+	updates?: boolean
 }
 
 export function GetConfigFields(): SomeCompanionConfigField[] {
@@ -20,7 +22,7 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 			label: 'How to connect',
 			value:
 				'On the timer, click <b>share</b>, choose <b>Companion</b> and copy the link shown under the code (<b>Copy link</b>). Paste it below. ' +
-				'If the timer has <b>Require a PIN</b> on, this connection shows a PIN in its status; type it into the timer’s share panel once.',
+				'The first time, this connection shows a 3-digit number in its status (and log): type it into the timer’s share panel to let it in.',
 		},
 		{
 			type: 'textinput',
@@ -42,6 +44,13 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 			label: 'Accept a self-signed certificate (testing only)',
 			width: 4,
 			default: false,
+		},
+		{
+			type: 'checkbox',
+			id: 'updates',
+			label: 'Check for a newer version of this module (daily, on GitHub)',
+			width: 12,
+			default: true,
 		},
 	]
 }

@@ -1,5 +1,6 @@
 import type { CompanionActionDefinitions, CompanionActionEvent } from '@companion-module/base'
 import type ModuleInstance from './main.js'
+import { str } from './util.js'
 
 /**
  * Durations: "12" = 12 minutes, "1:30" = 1 h 30 min, "0:20:00" = 20 minutes exactly (h:mm:ss),
@@ -25,14 +26,14 @@ export function parseDuration(text: string): number | null {
 
 export function UpdateActions(self: ModuleInstance): void {
 	// Companion resolves variables and expressions in the options before the callback runs
-	const parse = (ev: CompanionActionEvent, id: string): string => String(ev.options[id] ?? '')
+	const parse = (ev: CompanionActionEvent, id: string): string => str(ev.options[id])
 	const dur = (ev: CompanionActionEvent, id: string): number | null => {
 		const text = parse(ev, id)
 		const ms = parseDuration(text)
 		if (ms === null) self.log('warn', `Couldn't read the duration "${text}" (try 12, 1:30, 90s or 20 min)`)
 		return ms
 	}
-	const api = (msg: Record<string, unknown>) =>
+	const api = async (msg: Record<string, unknown>) =>
 		self.link?.api(msg).catch((err: Error) => self.log('warn', `${String(msg.cmd)}: ${err.message}`))
 
 	const durationOption = (label: string, def: string) => ({
@@ -50,7 +51,13 @@ export function UpdateActions(self: ModuleInstance): void {
 			description: 'Sets the default duration, starts the countdown and (optionally) shows a message',
 			options: [
 				durationOption('Duration', '10'),
-				{ id: 'message', type: 'textinput', label: 'Message to show (empty: leave as is)', default: '', useVariables: true },
+				{
+					id: 'message',
+					type: 'textinput',
+					label: 'Message to show (empty: leave as is)',
+					default: '',
+					useVariables: true,
+				},
 				{ id: 'setdefault', type: 'checkbox', label: 'Also make it the default duration', default: true },
 			],
 			callback: async (ev) => {
@@ -86,7 +93,18 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 		pause_set: {
 			name: 'Pause or resume (specific)',
-			options: [{ id: 'state', type: 'dropdown', label: 'Make it', default: 'pause', choices: [{ id: 'pause', label: 'Paused' }, { id: 'resume', label: 'Running' }] }],
+			options: [
+				{
+					id: 'state',
+					type: 'dropdown',
+					label: 'Make it',
+					default: 'pause',
+					choices: [
+						{ id: 'pause', label: 'Paused' },
+						{ id: 'resume', label: 'Running' },
+					],
+				},
+			],
 			callback: async (ev) => {
 				const paused = self.link?.vars.pausing === true || self.link?.vars.pausing === 'true'
 				if ((ev.options.state === 'pause') !== paused) await api({ cmd: 'pause' })
@@ -102,7 +120,16 @@ export function UpdateActions(self: ModuleInstance): void {
 		adjust: {
 			name: 'Add or remove time (applied at once)',
 			options: [
-				{ id: 'dir', type: 'dropdown', label: 'Direction', default: 'add', choices: [{ id: 'add', label: 'Add' }, { id: 'remove', label: 'Remove' }] },
+				{
+					id: 'dir',
+					type: 'dropdown',
+					label: 'Direction',
+					default: 'add',
+					choices: [
+						{ id: 'add', label: 'Add' },
+						{ id: 'remove', label: 'Remove' },
+					],
+				},
 				durationOption('Amount', '1'),
 			],
 			callback: async (ev) => {
@@ -112,9 +139,19 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 		nudge: {
 			name: 'Nudge the end time (countdown eases to it)',
-			description: 'Like the timer’s ↑/↓ keys: the display runs fast or slow until it reaches the new end. Catch up jumps there.',
+			description:
+				'Like the timer’s ↑/↓ keys: the display runs fast or slow until it reaches the new end. Catch up jumps there.',
 			options: [
-				{ id: 'dir', type: 'dropdown', label: 'Direction', default: 'add', choices: [{ id: 'add', label: 'Later' }, { id: 'remove', label: 'Earlier' }] },
+				{
+					id: 'dir',
+					type: 'dropdown',
+					label: 'Direction',
+					default: 'add',
+					choices: [
+						{ id: 'add', label: 'Later' },
+						{ id: 'remove', label: 'Earlier' },
+					],
+				},
 				durationOption('Amount', '10s'),
 			],
 			callback: async (ev) => {
@@ -133,7 +170,7 @@ export function UpdateActions(self: ModuleInstance): void {
 			name: 'Show a message',
 			options: [{ id: 'text', type: 'textinput', label: 'Message', default: 'Please wrap up', useVariables: true }],
 			callback: async (ev) => {
-				await api({ cmd: 'custommessage', text: (parse(ev, 'text')).trim() })
+				await api({ cmd: 'custommessage', text: parse(ev, 'text').trim() })
 			},
 		},
 		message_clear: {
@@ -147,7 +184,7 @@ export function UpdateActions(self: ModuleInstance): void {
 			name: 'Show a message, or clear it if it is already showing',
 			options: [{ id: 'text', type: 'textinput', label: 'Message', default: 'Please wrap up', useVariables: true }],
 			callback: async (ev) => {
-				const text = (parse(ev, 'text')).trim()
+				const text = parse(ev, 'text').trim()
 				const now = String(self.link?.vars.custommsg ?? '')
 				await api({ cmd: 'custommessage', text: now === text ? '' : text })
 			},
@@ -169,7 +206,7 @@ export function UpdateActions(self: ModuleInstance): void {
 				},
 			],
 			callback: async (ev) => {
-				await api({ cmd: String(ev.options.what) })
+				await api({ cmd: str(ev.options.what) })
 			},
 		},
 		switch_set: {
@@ -189,9 +226,9 @@ export function UpdateActions(self: ModuleInstance): void {
 				{ id: 'on', type: 'checkbox', label: 'On', default: true },
 			],
 			callback: async (ev) => {
-				const v = self.link?.vars[String(ev.options.what)]
+				const v = self.link?.vars[str(ev.options.what)]
 				const isOn = v === '1' || v === 1 || v === true
-				const cmd = { showbar: 'bar', showtimenow: 'time', showmessages: 'messages' }[String(ev.options.what)]
+				const cmd = { showbar: 'bar', showtimenow: 'time', showmessages: 'messages' }[str(ev.options.what)]
 				if (cmd && isOn !== !!ev.options.on) await api({ cmd })
 			},
 		},
@@ -225,21 +262,25 @@ export function UpdateActions(self: ModuleInstance): void {
 				},
 			],
 			callback: async (ev) => {
-				await api({ cmd: String(ev.options.what) })
+				await api({ cmd: str(ev.options.what) })
 			},
 		},
 		keys: {
 			name: 'Send keystrokes to the timer',
-			description: 'Keys as the timer’s keyboard reference lists them, separated by commas, e.g. "1,0,Enter" or "Control,ArrowUp,~Control" (~ = key up). Careful: this does whatever the keys do.',
+			description:
+				'Keys as the timer’s keyboard reference lists them, separated by commas, e.g. "1,0,Enter" or "Control,ArrowUp,~Control" (~ = key up). Careful: this does whatever the keys do.',
 			options: [{ id: 'keys', type: 'textinput', label: 'Keys', default: ' ', useVariables: true }],
 			callback: async (ev) => {
-				const keys = (parse(ev, 'keys')).split(',').map((k) => (k === '' ? ' ' : k))
+				const keys = parse(ev, 'keys')
+					.split(',')
+					.map((k) => (k === '' ? ' ' : k))
 				await api({ cmd: 'keys', keys })
 			},
 		},
 		raw: {
 			name: 'Send a raw timer API command (JSON)',
-			description: 'Advanced: the object passed to processTimerApiMessage, e.g. {"cmd":"start","msecs":300000}. See timerapi.js.',
+			description:
+				'Advanced: the object passed to processTimerApiMessage, e.g. {"cmd":"start","msecs":300000}. See timerapi.js.',
 			options: [{ id: 'json', type: 'textinput', label: 'JSON', default: '{"cmd":"start"}', useVariables: true }],
 			callback: async (ev) => {
 				const text = parse(ev, 'json')

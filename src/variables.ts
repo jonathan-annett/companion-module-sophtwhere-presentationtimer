@@ -6,6 +6,8 @@ import type ModuleInstance from './main.js'
  * sends is exposed too, under its bus name, so a newer timer adds variables without a module update.
  */
 export const KNOWN_VARIABLES: Record<string, string> = {
+	module_version: 'This module’s version',
+	module_update: 'A newer version of this module, if there is one (e.g. "v0.3.0 available"), else empty',
 	remain: 'Remaining time as shown (e.g. 9:58, 1:02:03; counts up after zero)',
 	remain_sign: 'Remaining: "+" in overtime, else empty',
 	remain_hours: 'Remaining: hours (no padding)',
@@ -60,9 +62,23 @@ export function UpdateVariableDefinitions(self: ModuleInstance, extra: string[])
  * countdown_major/countdown_minor keys.
  */
 export function splitRemain(text: string): Record<string, string | number> {
-	const m = String(text ?? '').trim().match(/^(\+?)(?:(\d+):)?(\d{1,2}):(\d{2})$/)
-	if (!m) return { remain_sign: '', remain_hours: '', remain_minutes: '', remain_seconds: '', remain_total: '', remain_major: '', remain_minor: '' }
-	const sign = m[1], h = Number(m[2] ?? 0), mi = Number(m[3]), se = Number(m[4])
+	const m = String(text ?? '')
+		.trim()
+		.match(/^(\+?)(?:(\d+):)?(\d{1,2}):(\d{2})$/)
+	if (!m)
+		return {
+			remain_sign: '',
+			remain_hours: '',
+			remain_minutes: '',
+			remain_seconds: '',
+			remain_total: '',
+			remain_major: '',
+			remain_minor: '',
+		}
+	const sign = m[1],
+		h = Number(m[2] ?? 0),
+		mi = Number(m[3]),
+		se = Number(m[4])
 	const total = h * 3600 + mi * 60 + se
 	const pad = (n: number) => String(n).padStart(2, '0')
 	return {

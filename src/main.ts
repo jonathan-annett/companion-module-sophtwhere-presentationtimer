@@ -5,6 +5,7 @@ import { UpdateActions } from './actions.js'
 import { UpdateFeedbacks, FEEDBACK_IDS } from './feedbacks.js'
 import { UpdatePresets } from './presets.js'
 import { TimerLink, parseLink, type LinkStatus } from './link.js'
+import { UpdateCheck, VERSION, type UpdateInfo } from './update.js'
 
 /**
  * Presentation Timer connection. The timer (timer.sophtwhere.com, or your own copy) runs in a
@@ -17,6 +18,17 @@ export default class ModuleInstance extends InstanceBase {
 	private extraVars = new Set<string>()
 	private varTimer: NodeJS.Timeout | null = null
 	private pendingVars: Record<string, string | number | boolean | null> = {}
+	/** A newer release of this module on GitHub, once seen (update.ts) */
+	update: UpdateInfo | null = null
+	private updates = new UpdateCheck((info) => {
+		this.update = info
+		this.log(
+			'warn',
+			`A newer version of this module is available: v${info.latest} (this is v${VERSION}). Download the .tgz from ${info.url} and import it in Companion (Modules → Import module package).`,
+		)
+		this.setVariableValues({ module_update: `v${info.latest} available` })
+		this.checkFeedbacks('update_available')
+	})
 
 	async init(config: unknown): Promise<void> {
 		this.config = config as ModuleConfig
@@ -24,18 +36,25 @@ export default class ModuleInstance extends InstanceBase {
 		UpdateFeedbacks(this)
 		UpdatePresets(this)
 		UpdateVariableDefinitions(this, [])
-		this.setVariableValues({ link_status: 'offline' })
+		this.setVariableValues({ link_status: 'offline', module_version: VERSION, module_update: '' })
 		this.connect()
+		if (this.config.updates !== false) this.updates.start()
 	}
 
 	async destroy(): Promise<void> {
 		this.disconnect()
+		this.updates.stop()
 	}
 
 	async configUpdated(cfg: unknown): Promise<void> {
 		const config = cfg as ModuleConfig
-		const relink = config.link !== this.config.link || config.server !== this.config.server || config.insecure !== this.config.insecure
+		const relink =
+			config.link !== this.config.link ||
+			config.server !== this.config.server ||
+			config.insecure !== this.config.insecure
 		this.config = config
+		if (config.updates !== false) this.updates.start()
+		else this.updates.stop()
 		if (relink) {
 			this.disconnect()
 			this.connect()
@@ -60,10 +79,17 @@ export default class ModuleInstance extends InstanceBase {
 			return
 		}
 		if (parsed.kind === 'view') {
-			this.updateStatus(InstanceStatus.BadConfig, 'That is a view-only link; use the Companion link (or a control/admin one)')
+			this.updateStatus(
+				InstanceStatus.BadConfig,
+				'That is a view-only link; use the Companion link (or a control/admin one)',
+			)
 			return
 		}
-		if (parsed.kind !== 'companion') this.log('warn', `This is a ${parsed.kind} link: it works for commands, but only a Companion link gets every command and all variables`)
+		if (parsed.kind !== 'companion')
+			this.log(
+				'warn',
+				`This is a ${parsed.kind} link: it works for commands, but only a Companion link gets every command and all variables`,
+			)
 		const server = (this.config.server || '').trim() || parsed.server
 		let origin: string | undefined
 		try {
@@ -90,7 +116,9 @@ export default class ModuleInstance extends InstanceBase {
 			this.config.token = token
 			this.saveConfig({ ...this.config, token }, undefined)
 		})
-		link.on('pin', (code) => this.log('info', `The timer wants a PIN: enter ${code} in its share panel to let Companion in`))
+		link.on('pin', (code) =>
+			this.log('info', `The timer wants a PIN: enter ${code} in its share panel to let Companion in`),
+		)
 		link.start()
 	}
 
@@ -134,7 +162,8 @@ export default class ModuleInstance extends InstanceBase {
 		this.varTimer = setTimeout(() => {
 			this.varTimer = null
 			const out: Record<string, string | number | boolean | undefined> = {}
-			for (const [k, v] of Object.entries(this.pendingVars)) out[k] = v === null ? '' : typeof v === 'boolean' ? (v ? 'true' : 'false') : v
+			for (const [k, v] of Object.entries(this.pendingVars))
+				out[k] = v === null ? '' : typeof v === 'boolean' ? (v ? 'true' : 'false') : v
 			if ('remain' in this.pendingVars) Object.assign(out, splitRemain(String(this.pendingVars.remain ?? '')))
 			this.pendingVars = {}
 			this.setVariableValues(out)

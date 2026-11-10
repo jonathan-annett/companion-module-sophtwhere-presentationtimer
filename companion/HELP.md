@@ -1,6 +1,6 @@
 # Presentation Timer
 
-Controls the [Presentation Timer](https://timer.sophtwhere.com/) — a browser-based countdown for talks and events — from Companion. The timer runs in a browser (on this computer or anywhere else); Companion joins it over the timer's pairing server, the same way a phone remote does.
+Controls the Presentation Timer ([timed-show.com](https://timed-show.com/), [timer.sophtwhere.com](https://timer.sophtwhere.com/) or your own copy) — a browser-based countdown for talks and events — from Companion. The timer runs in a browser (on this computer or anywhere else); Companion joins it over the timer's pairing server, the same way a phone remote does.
 
 ## Connecting
 
@@ -12,11 +12,11 @@ The connection shows **Connected** within a second or two. The panel on the time
 
 The link carries a key: anyone with it can control that timer, so treat it like a password. **New code** in the timer's panel revokes every link, including this one.
 
-**Require a PIN:** if that box is ticked on the timer, Companion's status reads *PIN needed on the timer* and the log shows a 4-digit PIN; type it in the timer’s share panel. The approval is remembered (the token is kept in this connection's config), so a restart doesn't ask again.
+**The first time:** Companion's status reads _PIN needed on the timer_ and the log shows a number; type it into the timer’s share panel to let it in. The approval is remembered (the token is kept in this connection's config), so a restart doesn't ask again.
 
-**Server:** leave blank. The link says which pairing server the timer uses (normally `wss://<timer host>:8443/`). Fill it in only for your own copy of the timer on a different server. **Allow self-signed certificates** is for a test server only.
+**Server:** leave blank. The link says which pairing server the timer uses (normally `wss://<timer host>/ws`). Fill it in only for your own copy of the timer on a different server. **Allow self-signed certificates** is for a test server only.
 
-The timer must be open in its browser tab for anything to work: Companion talks to the page, not to a server. If the tab is closed the status reads *The timer is not open*, and Companion reconnects when it comes back.
+The timer must be open in its browser tab for anything to work: Companion talks to the page, not to a server. If the tab is closed the status reads _The timer is not open_, and Companion reconnects when it comes back.
 
 ## Actions
 
@@ -54,3 +54,13 @@ Ready-made buttons under **Countdown** (remaining time, with message, **Big:** o
 - One Companion connection per timer. For two timers, add two connections.
 - Companion and the in-browser Stream Deck support can run at the same time; they are independent.
 - The timer's own help (press **?** in it) covers the timer itself.
+
+## Installing and updates
+
+Until this module is part of Companion itself, it's installed from a file:
+
+1. Download the latest `sophtwhere-presentationtimer-<version>.tgz` from [the releases page](https://github.com/jonathan-annett/companion-module-sophtwhere-presentationtimer/releases).
+2. In Companion, open **Modules**, click **Import module package** and choose the file.
+3. Add a **Presentation Timer** connection (or, after an update, your existing one picks up the new version).
+
+**Is there a newer version?** The module asks GitHub once a day (and when it starts). If there is one, the log says so, the `module_update` variable reads e.g. _v0.3.0 available_ and the **A newer version of this module is available** feedback turns on; the **Module update available** preset shows it on a button. Install it the same way. A module can't update itself. Turn the check off with **Check for a newer version of this module** in the connection's settings. `module_version` is the version you're running.
